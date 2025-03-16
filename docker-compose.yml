@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  # Frontend service
+  frontend:
+    build: ./claude-clone
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    environment:
+      - REACT_APP_API_URL=http://localhost:5000/api
+    volumes:
+      - ./claude-clone:/app
+      - /app/node_modules
+    restart: unless-stopped
+
+  # Backend service
+  backend:
+    build: ./claude-backend
+    ports:
+      - "5000:5000"
+    depends_on:
+      - db
+    environment:
+      - PORT=5000
+      - NODE_ENV=development
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=claude_db
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    volumes:
+      - ./claude-backend:/app
+      - /app/node_modules
+      - ./uploads:/app/uploads
+    restart: unless-stopped
+
+  # PostgreSQL database
+  db:
+    image: postgres:14-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=claude_db
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  postgres_data: 
