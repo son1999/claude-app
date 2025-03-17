@@ -11,6 +11,7 @@ services:
       - ./claude-backend:/app
       - /app/node_modules
       - ./claude-backend/.env:/app/.env
+      - ./uploads:/app/uploads
     depends_on:
       - db
     env_file:

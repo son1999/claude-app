@@ -58,3 +58,30 @@ if (savedTheme) {
     document.documentElement.classList.remove('dark');
   }
 }
+
+// Thêm hàm copy code block vào window để sử dụng từ các component
+window.copyCodeToClipboard = function (button) {
+  try {
+    // Tìm phần tử code
+    const codeElement = button.closest('.code-container').querySelector('code');
+    
+    // Lấy text gốc từ data attribute để tránh copy HTML
+    const originalCode = decodeURIComponent(codeElement.getAttribute('data-code'));
+    
+    // Copy vào clipboard
+    navigator.clipboard.writeText(originalCode).then(() => {
+      // Cập nhật trạng thái nút
+      const originalText = button.querySelector('span').textContent;
+      button.querySelector('span').textContent = 'Đã sao chép!';
+      button.classList.add('copied');
+      
+      // Reset sau 2 giây
+      setTimeout(() => {
+        button.querySelector('span').textContent = originalText;
+        button.classList.remove('copied');
+      }, 2000);
+    });
+  } catch (error) {
+    console.error('Lỗi khi sao chép code:', error);
+  }
+};
