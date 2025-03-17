@@ -1,20 +1,23 @@
 import { Model, DataTypes, Optional } from 'sequelize';
 import sequelize from '../config/database';
+import Message from './Message';
 
 interface ChatAttributes {
   id: string;
   title: string;
   created_at: Date;
   updated_at: Date;
+  messages?: Message[];
 }
 
-interface ChatCreationAttributes extends Optional<ChatAttributes, 'id' | 'created_at' | 'updated_at'> {}
+interface ChatCreationAttributes extends Optional<ChatAttributes, 'id' | 'created_at' | 'updated_at' | 'messages'> { }
 
 class Chat extends Model<ChatAttributes, ChatCreationAttributes> implements ChatAttributes {
   public id!: string;
   public title!: string;
   public created_at!: Date;
   public updated_at!: Date;
+  public messages?: Message[];
 }
 
 Chat.init(

@@ -1,9 +1,9 @@
-# Environment variables
+# Môi trường
 .env
 .env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.development
+.env.test
+.env.production
 
 # Uploads
 uploads/*
@@ -30,5 +30,15 @@ build
 .idea
 *.swp
 *.swo
-.DS_Store 
-uploads
+.DS_Store
+
+# Các file và thư mục khác để bỏ qua
+node_modules/
+dist/
+build/
+.DS_Store
+*.log
+*.lock
+.idea/
+.vscode/
+coverage/

@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   # Backend service
@@ -18,7 +18,9 @@ services:
       - DB_PASSWORD=postgres
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
     volumes:
-      - ./uploads:/app/uploads
+      - ./:/app
+      - /app/node_modules
+    command: npm run dev
     restart: unless-stopped
 
   # PostgreSQL database
@@ -35,4 +37,4 @@ services:
     restart: unless-stopped
 
 volumes:
-  postgres_data: 
+  postgres_data:

@@ -2,23 +2,26 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-# Sao chép package.json và package-lock.json
+# Copy package.json và package-lock.json
 COPY package*.json ./
 
 # Cài đặt dependencies
 RUN npm install
 
-# Sao chép mã nguồn
-COPY . .
-
-# Biên dịch TypeScript
-RUN npm run build
+# Cài đặt nodemon và ts-node
+RUN npm install -g nodemon ts-node
 
 # Tạo thư mục uploads
 RUN mkdir -p uploads
 
+# KHÔNG copy .env file vì nó chứa thông tin nhạy cảm
+# COPY .env ./
+
+# Copy source code
+COPY . .
+
 # Expose port
 EXPOSE 5000
 
-# Khởi động ứng dụng
-CMD ["npm", "start"] 
+# Start command
+CMD ["npm", "run", "dev"] 

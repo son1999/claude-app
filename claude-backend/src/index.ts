@@ -42,9 +42,10 @@ const startServer = async () => {
     // Đồng bộ hóa các models với cơ sở dữ liệu
     await syncDatabase();
     
-    // Khởi động server
-    app.listen(PORT, () => {
-      console.log(`Server đang chạy tại http://localhost:${PORT}`);
+    // Khởi động server - lắng nghe trên tất cả network interface
+    app.listen(Number(PORT), '0.0.0.0', () => {
+      console.log(`Server đang chạy tại http://0.0.0.0:${PORT}`);
+      console.log('Server có thể truy cập từ tất cả network interfaces');
     });
   } catch (error) {
     console.error('Không thể khởi động server:', error);
