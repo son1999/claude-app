@@ -1,6 +1,17 @@
 import anthropic from '../config/anthropic';
 import fs from 'fs';
 import path from 'path';
+import { Message, MessageContent } from '@anthropic-ai/sdk';
+
+interface DataNode {
+  id: string;
+  content: string;
+}
+
+interface ModelInfo {
+  id: string;
+  display_name?: string;
+}
 
 class AnthropicService {
   /**
@@ -67,7 +78,7 @@ class AnthropicService {
   /**
    * Gửi tin nhắn đến Claude và nhận phản hồi
    */
-  async sendMessage(prompt: string, modelId: string, attachmentPath?: string) {
+  async sendMessage(prompt: string, modelId: string, attachmentPath?: string, conversationHistory?: any[], contextSummary?: string) {
     try {
       // Lấy thông tin giới hạn model
       let maxTokens;
@@ -76,12 +87,29 @@ class AnthropicService {
         maxTokens = Math.min(4096, modelLimits.maxTokens); // Lấy giới hạn từ API nhưng giữ an toàn
         console.log(`Model ${modelId} có giới hạn: ${maxTokens} tokens`);
       } catch (error) {
-        // Fallback nếu không lấy được thông tin
         maxTokens = 4096;
         console.log(`Sử dụng giới hạn mặc định: ${maxTokens} tokens`);
       }
 
       const messages = [];
+      
+      // Thêm context summary nếu có (Phương pháp tối ưu token #1: Tóm tắt hội thoại)
+      if (contextSummary) {
+        messages.push({
+          role: 'system',
+          content: contextSummary
+        });
+      }
+      
+      // Thêm lịch sử hội thoại nếu có (giới hạn số lượng tin nhắn để tối ưu token)
+      if (conversationHistory && conversationHistory.length > 0) {
+        // Chuyển đổi định dạng tin nhắn nếu cần
+        const formattedHistory = conversationHistory.map(msg => ({
+          role: msg.is_user ? 'user' : 'assistant',
+          content: msg.content
+        }));
+        messages.push(...formattedHistory);
+      }
 
       // Tin nhắn từ người dùng
       const userMessage: any = {
@@ -174,10 +202,13 @@ class AnthropicService {
 
       messages.push(userMessage);
 
-      // Log request để debug
-      console.log(`Gửi yêu cầu tới model: ${modelId}`);
+      // Log để debug
+      console.log('Sending messages to Claude API:');
+      console.log('Total messages:', messages.length);
+      console.log('Context summary included:', !!contextSummary);
+      console.log('History messages included:', conversationHistory?.length || 0);
 
-      // Gửi tin nhắn đến Claude API với giới hạn tokens chính xác
+      // Gửi tin nhắn đến Claude API
       const response = await anthropic.messages.create({
         model: modelId,
         max_tokens: maxTokens,

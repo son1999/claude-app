@@ -8,6 +8,7 @@ export const useChatStore = defineStore("chat", {
     currentChat: null,
     loading: false,
     error: null,
+    maxMessagesInContext: 6, // Số tin nhắn tối đa giữ trong context
   }),
 
   getters: {
@@ -15,6 +16,31 @@ export const useChatStore = defineStore("chat", {
     getCurrentChat: (state) => state.currentChat,
     isLoading: (state) => state.loading,
     getError: (state) => state.error,
+    
+    // Lấy tin nhắn gần đây cho context
+    getRecentMessages: (state) => {
+      if (!state.currentChat || !state.currentChat.messages) return [];
+      return state.currentChat.messages.slice(-state.maxMessagesInContext);
+    },
+    
+    // Tạo tóm tắt context từ các tin nhắn cũ
+    getContextSummary: (state) => {
+      if (!state.currentChat || !state.currentChat.messages) return '';
+      
+      const oldMessages = state.currentChat.messages.slice(0, -state.maxMessagesInContext);
+      if (oldMessages.length === 0) return '';
+      
+      // Tạo tóm tắt ngắn gọn từ các tin nhắn cũ
+      const summary = oldMessages.reduce((acc, msg) => {
+        const role = msg.is_user ? 'User' : 'Assistant';
+        const shortContent = msg.content.length > 100 
+          ? msg.content.substring(0, 100) + '...'
+          : msg.content;
+        return acc + `${role}: ${shortContent}\n`;
+      }, '');
+      
+      return `Tóm tắt cuộc hội thoại trước đó:\n${summary}`;
+    }
   },
 
   actions: {
@@ -108,8 +134,16 @@ export const useChatStore = defineStore("chat", {
         if (selectedModel && selectedModel.id) {
           formData.append("modelId", selectedModel.id);
         } else {
-          // Fallback nếu không có model được chọn
           formData.append("modelId", "claude-3-sonnet-20240229");
+        }
+
+        // Thêm context tối ưu vào request
+        const recentMessages = this.getRecentMessages;
+        const contextSummary = this.getContextSummary;
+        
+        formData.append("conversationHistory", JSON.stringify(recentMessages));
+        if (contextSummary) {
+          formData.append("contextSummary", contextSummary);
         }
 
         if (attachment) {
@@ -246,5 +280,10 @@ export const useChatStore = defineStore("chat", {
     clearError() {
       this.error = null;
     },
+
+    // Thêm hàm điều chỉnh số lượng tin nhắn trong context
+    setMaxMessagesInContext(count) {
+      this.maxMessagesInContext = count;
+    }
   },
 });

@@ -7,16 +7,18 @@ interface ChatAttributes {
   title: string;
   created_at: Date;
   updated_at: Date;
+  context_summary?: string;
   messages?: Message[];
 }
 
-interface ChatCreationAttributes extends Optional<ChatAttributes, 'id' | 'created_at' | 'updated_at' | 'messages'> { }
+interface ChatCreationAttributes extends Optional<ChatAttributes, 'id' | 'created_at' | 'updated_at' | 'messages' | 'context_summary'> { }
 
 class Chat extends Model<ChatAttributes, ChatCreationAttributes> implements ChatAttributes {
   public id!: string;
   public title!: string;
   public created_at!: Date;
   public updated_at!: Date;
+  public context_summary?: string;
   public messages?: Message[];
 }
 
@@ -30,6 +32,10 @@ Chat.init(
     title: {
       type: DataTypes.STRING,
       allowNull: false
+    },
+    context_summary: {
+      type: DataTypes.TEXT,
+      allowNull: true
     },
     created_at: {
       type: DataTypes.DATE,
