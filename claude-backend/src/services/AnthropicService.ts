@@ -1,7 +1,9 @@
+/// <reference types="node" />
+
 import anthropic from '../config/anthropic';
 import fs from 'fs';
 import path from 'path';
-import { Message, MessageContent } from '@anthropic-ai/sdk';
+import type { Anthropic } from '@anthropic-ai/sdk';
 
 interface DataNode {
   id: string;
@@ -11,6 +13,22 @@ interface DataNode {
 interface ModelInfo {
   id: string;
   display_name?: string;
+}
+
+interface ChatMessage {
+  role: 'user' | 'assistant' | 'system';
+  content: string | Array<{type: string; text?: string; source?: any}>;
+}
+
+interface ModelResponse {
+  id: string;
+  display_name?: string;
+  description?: string;
+}
+
+interface MessageContentItem {
+  type: string;
+  text?: string;
 }
 
 class AnthropicService {
@@ -24,7 +42,7 @@ class AnthropicService {
       
       if (modelsResponse && modelsResponse.data) {
         // Chuyển đổi từ định dạng API sang định dạng ứng dụng
-        return modelsResponse.data.map(model => ({
+        return modelsResponse.data.map((model: ModelResponse) => ({
           id: model.id,
           name: model.display_name || model.id,
           description: `${model.display_name || model.id} model` 
@@ -220,9 +238,9 @@ class AnthropicService {
       let responseText = '';
       if (response.content && response.content.length > 0) {
         // Lấy nội dung text từ phản hồi
-        const textContent = response.content.find(item => item.type === 'text');
+        const textContent = response.content.find((item: MessageContentItem) => item.type === 'text');
         if (textContent && 'text' in textContent) {
-          responseText = textContent.text;
+          responseText = textContent.text || '';
         }
       }
 
