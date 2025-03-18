@@ -233,6 +233,7 @@ const handleCopyClick = (event) => {
           alert('Không thể sao chép mã. Vui lòng thử lại.');
         });
     } catch (error) {
+      console.log(error);
       console.error('Lỗi khi sao chép mã:', error);
       alert('Lỗi khi sao chép mã. Vui lòng thử lại.');
     }
