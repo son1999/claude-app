@@ -209,33 +209,73 @@ const handleCopyClick = (event) => {
     
     try {
       const decodedCode = decodeURIComponent(encodedCode);
-      navigator.clipboard.writeText(decodedCode)
-        .then(() => {
-          // Thêm hiệu ứng đã sao chép
-          button.classList.add('copied');
-          
-          // Thay đổi icon thành dấu check trong giây lát
-          const originalHTML = button.innerHTML;
-          button.innerHTML = `
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-            </svg>
-          `;
-          
-          // Trả lại trạng thái ban đầu sau 2 giây
-          setTimeout(() => {
-            button.classList.remove('copied');
-            button.innerHTML = originalHTML;
-          }, 2000);
-        })
-        .catch(err => {
-          console.error('Không thể sao chép văn bản: ', err);
-          alert('Không thể sao chép mã. Vui lòng thử lại.');
-        });
+      
+      // Sử dụng phương thức cũ document.execCommand để hoạt động trên HTTP
+      const textarea = document.createElement('textarea');
+      textarea.value = decodedCode;
+      textarea.style.position = 'fixed';  // Tránh scroll xuống
+      textarea.style.opacity = '0';       // Ẩn textarea
+      document.body.appendChild(textarea);
+      textarea.select();
+      
+      const successful = document.execCommand('copy');
+      document.body.removeChild(textarea);
+      
+      if (successful) {
+        // Thêm hiệu ứng đã sao chép
+        button.classList.add('copied');
+        
+        // Thay đổi icon thành dấu check trong giây lát
+        const originalHTML = button.innerHTML;
+        button.innerHTML = `
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+          </svg>
+        `;
+        
+        // Trả lại trạng thái ban đầu sau 2 giây
+        setTimeout(() => {
+          button.classList.remove('copied');
+          button.innerHTML = originalHTML;
+        }, 2000);
+      } else {
+        throw new Error('Không thể sao chép bằng execCommand');
+      }
     } catch (error) {
       console.log(error);
       console.error('Lỗi khi sao chép mã:', error);
       alert('Lỗi khi sao chép mã. Vui lòng thử lại.');
+      
+      // Thử phương pháp thay thế nếu execCommand không hoạt động
+      try {
+        const decodedCode = decodeURIComponent(encodedCode);
+        navigator.clipboard.writeText(decodedCode)
+          .then(() => {
+            // Thêm hiệu ứng đã sao chép
+            button.classList.add('copied');
+            
+            // Thay đổi icon thành dấu check trong giây lát
+            const originalHTML = button.innerHTML;
+            button.innerHTML = `
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+              </svg>
+            `;
+            
+            // Trả lại trạng thái ban đầu sau 2 giây
+            setTimeout(() => {
+              button.classList.remove('copied');
+              button.innerHTML = originalHTML;
+            }, 2000);
+          })
+          .catch(err => {
+            console.error('Không thể sao chép văn bản: ', err);
+            alert('Không thể sao chép mã. Vui lòng thử lại.');
+          });
+      } catch (backupError) {
+        console.error('Cả hai phương pháp sao chép đều không hoạt động:', backupError);
+        alert('Không thể sao chép mã. Vui lòng thử phương pháp thủ công (Ctrl+C).');
+      }
     }
   }
 };
