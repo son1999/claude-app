@@ -14,7 +14,7 @@
         placeholder="Nhập tin nhắn cho Claude..."
         class="flex-1 p-3 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-lg resize-none border-0 focus:ring-2 focus:ring-primary focus:outline-none"
         :rows="rows"
-        @keydown.enter.prevent="onEnter"
+        @keydown.enter="onEnter"
         @input="autoResize"
       ></textarea>
       
@@ -125,8 +125,12 @@ const adjustTextareaHeight = () => {
 const onEnter = (e) => {
   // Shift + Enter để xuống dòng
   if (e.shiftKey) {
-    return true;
+    // Cho phép hành vi mặc định của phím Enter khi nhấn cùng Shift
+    return;
   }
+  
+  // Ngăn chặn hành vi mặc định của phím Enter (không có Shift)
+  e.preventDefault();
   
   // Enter để gửi tin nhắn
   handleSend();
