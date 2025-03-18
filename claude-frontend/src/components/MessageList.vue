@@ -18,9 +18,31 @@
         <div class="message" :class="{ 'user-message': isUserMessage(message), 'ai-message': !isUserMessage(message) }">
           <div class="message-header">
             <div class="message-sender">{{ isUserMessage(message) ? 'Bạn' : 'Claude' }}</div>
-            <div class="message-time">{{ formatTime(message.createdAt || message.created_at) }}</div>
+            <div class="message-time">
+              {{ formatTime(message.createdAt || message.created_at) }}
+              <button v-if="isUserMessage(message) && !editingMessageId" 
+                     @click="startEditMessage(message)" 
+                     class="edit-button ml-2">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+                </svg>
+              </button>
+            </div>
           </div>
-          <div class="message-content" v-html="formatMessage(message.content)"></div>
+          <div v-if="editingMessageId === message.id" class="edit-message-container">
+            <textarea 
+              v-model="editedMessageContent" 
+              class="edit-textarea"
+              rows="3"
+              @keydown.esc="cancelEdit"
+              @keydown.ctrl.enter="saveEdit"
+            ></textarea>
+            <div class="edit-actions">
+              <button @click="saveEdit" class="edit-save-button">Lưu</button>
+              <button @click="cancelEdit" class="edit-cancel-button">Hủy</button>
+            </div>
+          </div>
+          <div v-else class="message-content" v-html="formatMessage(message.content)"></div>
         </div>
       </div>
     </div>
@@ -73,9 +95,11 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(['useSuggestion']);
+const emit = defineEmits(['useSuggestion', 'editMessage']);
 
 const messageList = ref(null);
+const editingMessageId = ref(null);
+const editedMessageContent = ref('');
 
 // Kiểm tra xem tin nhắn có phải của người dùng không
 const isUserMessage = (message) => {
@@ -317,6 +341,59 @@ onUpdated(() => {
   scrollToBottom();
   attachCopyHandlers(); // Gắn handler sau khi DOM cập nhật
 });
+
+// Bắt đầu chỉnh sửa tin nhắn
+const startEditMessage = (message) => {
+  editingMessageId.value = message.id;
+  editedMessageContent.value = message.content;
+  
+  // Đảm bảo DOM được cập nhật và focusable
+  nextTick(() => {
+    const textarea = document.querySelector('.edit-textarea');
+    if (textarea) {
+      textarea.focus();
+    }
+  });
+};
+
+// Lưu thay đổi tin nhắn
+const saveEdit = () => {
+  console.log('saveEdit called', editingMessageId.value);
+  if (!editingMessageId.value) return;
+  
+  // Tìm tin nhắn đang được chỉnh sửa
+  const messageIndex = props.messages.findIndex(m => m.id === editingMessageId.value);
+  console.log('Found message at index:', messageIndex);
+  if (messageIndex === -1) return;
+  
+  const messageId = editingMessageId.value;
+  const newContent = editedMessageContent.value;
+  
+  // Log trước khi emit
+  console.log('Emitting editMessage event', {
+    messageId,
+    newContent,
+    messageIndex
+  });
+  
+  // Phát ra sự kiện để component cha xử lý việc cập nhật tin nhắn
+  // Sử dụng cấu trúc dữ liệu rõ ràng hơn
+  emit('editMessage', {
+    messageId,
+    newContent,
+    messageIndex
+  });
+  
+  // Reset trạng thái chỉnh sửa
+  editingMessageId.value = null;
+  editedMessageContent.value = '';
+};
+
+// Hủy chỉnh sửa
+const cancelEdit = () => {
+  editingMessageId.value = null;
+  editedMessageContent.value = '';
+};
 </script>
 
 <style scoped>
@@ -606,5 +683,93 @@ onUpdated(() => {
   margin: 1rem 0;
   max-width: 100%;
   overflow: hidden;
+}
+
+/* Style cho chức năng chỉnh sửa tin nhắn */
+.edit-button {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  color: #64748b;
+}
+
+.message-header:hover .edit-button {
+  opacity: 1;
+}
+
+.edit-button:hover {
+  color: #2563eb;
+}
+
+.edit-message-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.edit-textarea {
+  width: 100%;
+  min-height: 80px;
+  padding: 0.75rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  font-family: inherit;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  background-color: white;
+  color: #334155;
+  resize: vertical;
+}
+
+.dark .edit-textarea {
+  background-color: #1e293b;
+  border-color: #475569;
+  color: #f8fafc;
+}
+
+.edit-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.edit-save-button, .edit-cancel-button {
+  padding: 0.5rem 1rem;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.edit-save-button {
+  background-color: #2563eb;
+  color: white;
+  border: none;
+}
+
+.edit-save-button:hover {
+  background-color: #1d4ed8;
+}
+
+.edit-cancel-button {
+  background-color: transparent;
+  color: #64748b;
+  border: 1px solid #cbd5e1;
+}
+
+.dark .edit-cancel-button {
+  color: #94a3b8;
+  border-color: #475569;
+}
+
+.edit-cancel-button:hover {
+  background-color: #f1f5f9;
+  color: #1e293b;
+}
+
+.dark .edit-cancel-button:hover {
+  background-color: #334155;
+  color: #e2e8f0;
 }
 </style>
