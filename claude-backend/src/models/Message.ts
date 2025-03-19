@@ -8,11 +8,13 @@ interface MessageAttributes {
   content: string;
   is_user: boolean;
   attachment_url?: string;
+  model_id?: string;
+  provider?: string;
   created_at: Date;
   updated_at: Date;
 }
 
-interface MessageCreationAttributes extends Optional<MessageAttributes, 'id' | 'created_at' | 'updated_at' | 'attachment_url'> {}
+interface MessageCreationAttributes extends Optional<MessageAttributes, 'id' | 'created_at' | 'updated_at' | 'attachment_url' | 'model_id' | 'provider'> {}
 
 class Message extends Model<MessageAttributes, MessageCreationAttributes> implements MessageAttributes {
   public id!: string;
@@ -20,6 +22,8 @@ class Message extends Model<MessageAttributes, MessageCreationAttributes> implem
   public content!: string;
   public is_user!: boolean;
   public attachment_url?: string;
+  public model_id?: string;
+  public provider?: string;
   public created_at!: Date;
   public updated_at!: Date;
 }
@@ -49,6 +53,14 @@ Message.init(
       allowNull: false
     },
     attachment_url: {
+      type: DataTypes.STRING,
+      allowNull: true
+    },
+    model_id: {
+      type: DataTypes.STRING,
+      allowNull: true
+    },
+    provider: {
       type: DataTypes.STRING,
       allowNull: true
     },

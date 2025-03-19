@@ -1,5 +1,6 @@
 import { Chat, Message } from '../models';
 import AnthropicService from './AnthropicService';
+import ModelService from './ModelService';
 
 class ChatService {
   /**
@@ -83,7 +84,7 @@ class ChatService {
   /**
    * Gửi tin nhắn trong một chat
    */
-  async sendMessage(chatId: string, content: string, modelId: string, attachmentPath?: string) {
+  async sendMessage(chatId: string, content: string, modelId: string, provider?: string, attachmentPath?: string, fileIds?: string[]) {
     try {
       // Kiểm tra xem chat có tồn tại không
       const chat = await Chat.findByPk(chatId, {
@@ -103,6 +104,8 @@ class ChatService {
         chat_id: chatId,
         content,
         is_user: true,
+        model_id: modelId,
+        provider: provider,
         attachment_url: attachmentPath ? `/uploads/${attachmentPath.split('/').pop()}` : undefined
       });
 
@@ -128,20 +131,24 @@ class ChatService {
         }
       }
       
-      // Gửi tin nhắn đến Claude và nhận phản hồi
-      const response = await AnthropicService.sendMessage(
+      // Gửi tin nhắn đến model API và nhận phản hồi
+      const response = await ModelService.sendMessage(
         content, 
-        modelId, 
+        modelId,
+        provider,  
         attachmentPath, 
         conversationHistory, 
-        contextSummary
+        contextSummary,
+        fileIds
       );
 
       // Lưu phản hồi từ AI
       const aiMessage = await Message.create({
         chat_id: chatId,
         content: response.content,
-        is_user: false
+        is_user: false,
+        model_id: modelId,
+        provider: provider
       });
 
       // Cập nhật tiêu đề chat nếu là tin nhắn đầu tiên
@@ -167,12 +174,13 @@ class ChatService {
             content: msg.content
           }));
           
-          // Gửi yêu cầu tóm tắt đến Claude
+          // Gửi yêu cầu tóm tắt đến model
           const summaryPrompt = "Hãy tóm tắt ngắn gọn các thông tin quan trọng từ cuộc hội thoại sau để làm ngữ cảnh cho các cuộc trò chuyện tiếp theo. Tóm tắt không quá 200 từ.";
           
-          const summarizationResponse = await AnthropicService.sendMessage(
+          const summarizationResponse = await ModelService.sendMessage(
             summaryPrompt,
             modelId,
+            provider,
             undefined,
             historyForSummary
           );
@@ -206,19 +214,121 @@ class ChatService {
   async deleteChat(chatId: string) {
     try {
       const chat = await Chat.findByPk(chatId);
+      
+      if (!chat) {
+        throw new Error('Chat không tồn tại');
+      }
+      
+      // Xóa tất cả tin nhắn trong chat trước
+      await Message.destroy({
+        where: { chat_id: chatId }
+      });
+      
+      // Sau đó xóa chat
+      await chat.destroy();
+      
+      return true;
+    } catch (error) {
+      console.error(`Lỗi khi xóa chat ${chatId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Chỉnh sửa tin nhắn trong một chat
+   * @param messageId ID của tin nhắn cần chỉnh sửa
+   * @param newContent Nội dung mới của tin nhắn
+   * @param aiMessageId ID của tin nhắn AI cần cập nhật phản hồi hoặc null/undefined
+   * @param modelId ID của model AI được sử dụng
+   * @param provider Nhà cung cấp AI (anthropic hoặc openai)
+   */
+  async editMessage(messageId: string, newContent: string, aiMessageId: string | null | undefined, modelId: string, provider?: string) {
+    try {
+      // Tìm tin nhắn cần chỉnh sửa
+      const message = await Message.findByPk(messageId);
+      if (!message) {
+        throw new Error('Tin nhắn không tồn tại');
+      }
+
+      // Cập nhật nội dung tin nhắn
+      await message.update({ content: newContent });
+
+      // Nếu không có aiMessageId, chỉ cập nhật tin nhắn người dùng và trả về
+      if (!aiMessageId) {
+        return {
+          userMessage: message,
+          aiMessage: null,
+          aiContent: null
+        };
+      }
+
+      // Tìm chat chứa tin nhắn này
+      const chat = await Chat.findByPk(message.chat_id, {
+        include: [{
+          model: Message,
+          as: 'messages',
+          order: [['created_at', 'ASC']]
+        }]
+      });
+
       if (!chat) {
         throw new Error('Chat không tồn tại');
       }
 
-      // Xóa tất cả tin nhắn trong chat
-      await Message.destroy({ where: { chat_id: chatId } });
+      // Tìm vị trí của tin nhắn hiện tại
+      const allMessages = chat.messages || [];
+      const currentMessageIndex = allMessages.findIndex(msg => msg.id === messageId);
+      
+      if (currentMessageIndex === -1) {
+        throw new Error('Không tìm thấy tin nhắn trong hội thoại');
+      }
 
-      // Xóa chat
-      await chat.destroy();
+      // Tính toán vị trí bắt đầu để lấy 6 câu hỏi trước đó
+      const startIndex = Math.max(0, currentMessageIndex - 12); // 6 cặp user-AI messages
+      
+      // Lấy 6 câu hỏi trước đó và tin nhắn hiện tại
+      const contextMessages = allMessages.slice(startIndex, currentMessageIndex);
+      
+      // Chuẩn bị lịch sử hội thoại cho API
+      const conversationHistory: { role: 'user' | 'assistant'; content: string }[] = [];
+      
+      // Định dạng lịch sử cuộc trò chuyện cho API
+      contextMessages.forEach(msg => {
+        conversationHistory.push({
+          role: msg.is_user ? "user" as const : "assistant" as const,
+          content: msg.content
+        });
+      });
 
-      return { success: true, message: 'Đã xóa chat thành công' };
+      // Gửi tin nhắn đến AI và nhận phản hồi
+      const response = await ModelService.sendMessage(
+        newContent, 
+        modelId,
+        provider,
+        undefined, // không có attachment khi chỉnh sửa
+        conversationHistory
+      );
+
+      // Tìm và cập nhật tin nhắn AI
+      if (aiMessageId) {
+        const aiMessage = await Message.findByPk(aiMessageId);
+        if (aiMessage) {
+          await aiMessage.update({ 
+            content: response.content,
+            model_id: modelId,
+            provider: provider
+          });
+        }
+      }
+
+      // Trả về cả tin nhắn người dùng đã cập nhật và phản hồi AI
+      return {
+        userMessage: await Message.findByPk(messageId),
+        aiMessage: aiMessageId ? await Message.findByPk(aiMessageId) : null,
+        aiContent: response.content
+      };
     } catch (error) {
-      console.error(`Lỗi khi xóa chat ${chatId}:`, error);
+      console.error(`Lỗi khi chỉnh sửa tin nhắn ${messageId}:`, error);
       throw error;
     }
   }

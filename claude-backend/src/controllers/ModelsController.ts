@@ -1,13 +1,13 @@
 import { Request, Response } from 'express';
-import AnthropicService from '../services/AnthropicService';
+import ModelService from '../services/ModelService';
 
 class ModelsController {
   /**
-   * Lấy danh sách các mô hình AI từ Anthropic
+   * Lấy danh sách các mô hình AI từ tất cả nhà cung cấp
    */
   async getModels(req: Request, res: Response) {
     try {
-      const models = await AnthropicService.getModels();
+      const models = await ModelService.getModels();
       
       res.status(200).json({
         success: true,
@@ -27,6 +27,7 @@ class ModelsController {
   async getModelDetails(req: Request, res: Response) {
     try {
       const { id } = req.params;
+      const { provider } = req.query;
       
       if (!id) {
         return res.status(400).json({
@@ -35,7 +36,7 @@ class ModelsController {
         });
       }
       
-      const modelDetails = await AnthropicService.getModelLimits(id);
+      const modelDetails = await ModelService.getModelLimits(id, provider as string);
       
       res.status(200).json({
         success: true,

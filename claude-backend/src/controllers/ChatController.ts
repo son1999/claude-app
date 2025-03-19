@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import ChatService from '../services/ChatService';
+import fs from 'fs';
 
 class ChatController {
   /**
@@ -76,15 +77,20 @@ class ChatController {
    */
   async sendMessage(req: Request, res: Response) {
     try {
-      const { id } = req.params;
+      const { chatId } = req.params;
       const { content } = req.body;
-      let { modelId } = req.body;
+      let { modelId, provider, fileIds } = req.body;
 
       // Log dữ liệu request để debug
       console.log('Request data:', { 
         params: req.params,
         body: req.body,
-        modelId: modelId
+        chatId: chatId,
+        modelId: modelId,
+        provider: provider,
+        hasFileIds: fileIds ? true : false,
+        numFileIds: fileIds ? fileIds.length : 0,
+        hasFile: req.file ? true : false
       });
 
       if (!content) {
@@ -98,13 +104,69 @@ class ChatController {
       // Đảm bảo có modelId, nếu không có thì dùng giá trị mặc định
       if (!modelId) {
         modelId = 'claude-3-sonnet-20240229'; // Fallback model mặc định
+        provider = 'anthropic';
         console.log('Sử dụng model mặc định:', modelId);
       }
 
       // Kiểm tra xem có file đính kèm không
       const attachmentPath = req.file ? req.file.path : undefined;
+      let updatedFileIds = fileIds || [];
 
-      const result = await ChatService.sendMessage(id, content, modelId, attachmentPath);
+      // Nếu có file đính kèm và provider là OpenAI, upload file lên OpenAI trước
+      if (attachmentPath && provider === 'openai') {
+        try {
+          console.log(`Tự động tải file đính kèm lên OpenAI: ${attachmentPath}`);
+          console.log(`Thông tin file: ${JSON.stringify(req.file, null, 2)}`);
+          
+          // Import trực tiếp để tránh vấn đề với require.cache
+          const fileContent = fs.readFileSync(attachmentPath);
+          console.log(`Đã đọc file, kích thước: ${fileContent.length} bytes`);
+          
+          const ModelService = require('../services/ModelService').default;
+          console.log('ModelService loaded:', ModelService ? 'Yes' : 'No');
+          
+          const fileData = await ModelService.uploadFile(attachmentPath, 'openai');
+          console.log('File đã tải lên OpenAI:', JSON.stringify(fileData, null, 2));
+          
+          // Thêm fileId mới vào danh sách
+          if (fileData && fileData.id) {
+            if (typeof updatedFileIds === 'string') {
+              try {
+                updatedFileIds = JSON.parse(updatedFileIds);
+              } catch (e) {
+                updatedFileIds = updatedFileIds ? [updatedFileIds] : [];
+              }
+            }
+            
+            if (!Array.isArray(updatedFileIds)) {
+              updatedFileIds = [];
+            }
+            
+            updatedFileIds.push(fileData.id);
+            console.log(`Đã thêm fileId ${fileData.id} vào danh sách fileIds:`, updatedFileIds);
+          } else {
+            console.error('Không nhận được fileId từ OpenAI sau khi upload');
+          }
+        } catch (uploadError: any) {
+          console.error('Lỗi khi tải file lên OpenAI:', uploadError);
+          console.error('Thông tin chi tiết lỗi:', uploadError.stack);
+          // Tiếp tục xử lý ngay cả khi không thể tải lên file
+        }
+      }
+
+      // Kiểm tra và xử lý fileIds
+      if (updatedFileIds && typeof updatedFileIds === 'string') {
+        try {
+          updatedFileIds = JSON.parse(updatedFileIds);
+        } catch (e) {
+          // Nếu không phải JSON, xem như là một ID đơn
+          updatedFileIds = [updatedFileIds];
+        }
+      }
+
+      console.log('FileIds cuối cùng được sử dụng:', updatedFileIds);
+
+      const result = await ChatService.sendMessage(chatId, content, modelId, provider, attachmentPath, updatedFileIds);
 
       res.status(200).json({
         success: true,

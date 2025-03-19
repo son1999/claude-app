@@ -45,20 +45,72 @@ const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCa
   // Log để debug
   console.log(`Kiểm tra file: ${file.originalname}, MIME: ${file.mimetype}`);
   
-  // Chấp nhận các định dạng file phổ biến
-  const allowedTypes = [
-    'image/jpeg',
-    'image/png',
-    'image/gif',
-    'image/webp',
-    'application/pdf',
-  ];
+  // Lấy provider từ headers hoặc query parameters (vì multer xử lý trước khi body được parse)
+  const provider = 
+    (req.headers && req.headers['x-provider']) || 
+    (req.query && req.query.provider) || 
+    'anthropic';
   
-  if (allowedTypes.includes(file.mimetype)) {
+  // Chuyển provider về string
+  const providerStr = Array.isArray(provider) ? provider[0] : provider.toString();
+  
+  console.log(`Provider được xác định: ${providerStr}`);
+  
+  // Danh sách định dạng file được hỗ trợ, chia theo nhà cung cấp
+  const allowedTypes: { [key: string]: string[] } = {
+    // Anthropic chỉ hỗ trợ hình ảnh và PDF
+    anthropic: [
+      'image/jpeg',
+      'image/png',
+      'image/gif',
+      'image/webp',
+      'application/pdf',
+    ],
+    // OpenAI hỗ trợ nhiều định dạng hơn
+    openai: [
+      'image/jpeg',
+      'image/png',
+      'image/gif',
+      'image/webp',
+      'application/pdf',
+      // Microsoft Office
+      'application/msword', // .doc
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
+      'application/vnd.ms-excel', // .xls
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+      'application/vnd.ms-powerpoint', // .ppt
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation', // .pptx
+      // OpenDocument
+      'application/vnd.oasis.opendocument.text', // .odt
+      'application/vnd.oasis.opendocument.spreadsheet', // .ods
+      'application/vnd.oasis.opendocument.presentation', // .odp
+      // Text
+      'text/plain', // .txt
+      'text/csv', // .csv
+      'text/html', // .html
+      'text/markdown', // .md
+      // Code
+      'application/json', // .json
+      'text/javascript', // .js
+      'application/xml', // .xml
+    ]
+  };
+  
+  // Kiểm tra xem file có được hỗ trợ cho provider đã chọn không
+  const supportedTypes = allowedTypes[providerStr] || allowedTypes['anthropic']; // Default to Anthropic
+  
+  if (supportedTypes.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    console.error(`Từ chối file không hỗ trợ: ${file.mimetype}`);
-    cb(new Error(`Định dạng file ${file.mimetype} không được hỗ trợ. Chỉ chấp nhận JPEG, PNG, GIF, WebP và PDF.`));
+    // Nếu file không được hỗ trợ bởi provider đã chọn, thông báo rõ ràng hơn
+    console.error(`Từ chối file không hỗ trợ bởi ${providerStr}: ${file.mimetype}`);
+    
+    // Danh sách MIME type được hỗ trợ dưới dạng văn bản
+    const supportedFormats = providerStr === 'openai' 
+      ? 'JPEG, PNG, GIF, WebP, PDF, Word, Excel, PowerPoint, OpenDocument, Text, và các định dạng khác'
+      : 'JPEG, PNG, GIF, WebP và PDF';
+    
+    cb(new Error(`Định dạng file ${file.mimetype} không được hỗ trợ bởi ${providerStr}. Provider này chỉ chấp nhận ${supportedFormats}.`));
   }
 };
 

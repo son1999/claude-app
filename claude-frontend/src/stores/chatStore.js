@@ -130,11 +130,17 @@ export const useChatStore = defineStore("chat", {
         const modelStore = useModelStore();
         const selectedModel = modelStore.getSelectedModel;
         
-        // Thêm modelId vào formData
+        // Thêm modelId và provider vào formData
         if (selectedModel && selectedModel.id) {
           formData.append("modelId", selectedModel.id);
+          
+          // Thêm provider vào formData nếu có
+          if (selectedModel.provider) {
+            formData.append("provider", selectedModel.provider);
+          }
         } else {
           formData.append("modelId", "claude-3-sonnet-20240229");
+          formData.append("provider", "anthropic");
         }
 
         // Thêm context tối ưu vào request

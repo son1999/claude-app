@@ -103,6 +103,7 @@
             :loading="isLoading" 
             :is-typing="isTyping"
             @use-suggestion="handleSuggestion"
+            @edit-message="editMessage"
             class="bg-gray-100 dark:bg-gray-900"
           />
           
@@ -319,6 +320,74 @@ watch(() => route.params.id, async (newId) => {
     await chatStore.fetchChatById(newId);
   }
 });
+
+// Xử lý chỉnh sửa tin nhắn
+const editMessage = async ({ messageId, newContent, messageIndex }) => {
+  try {
+    console.log('Xử lý chỉnh sửa tin nhắn:', { messageId, newContent, messageIndex });
+    
+    // Cập nhật local UI trước để UX mượt hơn
+    if (currentChat.value && currentChat.value.messages) {
+      const message = currentChat.value.messages[messageIndex];
+      if (message) {
+        message.content = newContent;
+      }
+    }
+    
+    // Tìm tin nhắn AI tiếp theo
+    let aiMessageId = null;
+    if (currentChat.value && currentChat.value.messages && messageIndex + 1 < currentChat.value.messages.length) {
+      const nextMessage = currentChat.value.messages[messageIndex + 1];
+      if (nextMessage && !nextMessage.is_user) {
+        aiMessageId = nextMessage.id;
+      }
+    }
+    
+    // Cần lấy modelId từ store
+    const modelId = currentModel.value?.id || 'claude-3-sonnet-20240229';
+    // Lấy thông tin provider từ model
+    const provider = currentModel.value?.provider || 'anthropic';
+    
+    // Hiển thị trạng thái đang xử lý
+    isTyping.value = true;
+    
+    // Gọi API để cập nhật tin nhắn
+    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '';
+    const apiPrefix = import.meta.env.VITE_API_PREFIX || '/api';
+    const response = await fetch(`${apiBaseUrl}${apiPrefix}/messages/${messageId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        content: newContent,
+        aiMessageId,
+        modelId,
+        provider
+      })
+    });
+    
+    const result = await response.json();
+    
+    if (result.success && result.aiMessage) {
+      // Cập nhật tin nhắn AI trong UI
+      if (currentChat.value && currentChat.value.messages && messageIndex + 1 < currentChat.value.messages.length) {
+        const aiMessage = currentChat.value.messages[messageIndex + 1];
+        if (aiMessage) {
+          aiMessage.content = result.aiMessage.content;
+        }
+      }
+    } else if (!result.success) {
+      console.error('Lỗi khi cập nhật tin nhắn:', result.error);
+      alert('Có lỗi xảy ra khi cập nhật tin nhắn. Vui lòng thử lại.');
+    }
+  } catch (error) {
+    console.error('Lỗi khi gửi yêu cầu chỉnh sửa tin nhắn:', error);
+    alert('Có lỗi xảy ra khi cập nhật tin nhắn. Vui lòng thử lại.');
+  } finally {
+    isTyping.value = false;
+  }
+};
 </script>
 
 <style scoped>
