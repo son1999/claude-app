@@ -24,8 +24,8 @@ services:
       - DB_NAME=claude_db
       - DB_USER=postgres
       - DB_PASSWORD=postgres
-      # API key được đọc từ file .env thông qua env_file ở trên
-      # KHÔNG hardcode API key ở đây
+      - CHOKIDAR_USEPOLLING=true
+      - WATCHPACK_POLLING=true
     command: npm run dev
     restart: unless-stopped
 
@@ -43,6 +43,8 @@ services:
     environment:
       - VITE_API_BASE_URL=http://localhost:5000
       - VITE_API_PREFIX=/api
+      - CHOKIDAR_USEPOLLING=true
+      - WATCHPACK_POLLING=true
     command: npm run dev -- --host
     restart: unless-stopped
 

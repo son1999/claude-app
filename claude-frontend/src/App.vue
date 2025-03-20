@@ -20,8 +20,9 @@ onMounted(() => {
 
 <style>
 :root {
-  --color-primary: #3b82f6;
-  --color-primary-light: #60a5fa;
+  --color-primary: #7928CA;
+  --color-primary-light: #9F7AEA;
+  --color-primary-dark: #5521B5;
   --color-message-bg-light: #f3f3f3;
   --color-message-bg-dark: #111827;
   --color-text-primary: #1f2937;
@@ -34,6 +35,26 @@ onMounted(() => {
   --color-table-header: #f9fafb;
 }
 
+.bg-primary {
+  background-color: var(--color-primary);
+}
+
+.text-primary {
+  color: var(--color-primary);
+}
+
+.border-primary {
+  border-color: var(--color-primary);
+}
+
+.accent-primary {
+  accent-color: var(--color-primary);
+}
+
+.bg-primary\/10 {
+  background-color: rgba(121, 40, 202, 0.1);
+}
+
 .dark {
   --color-text-primary: #f3f4f6;
   --color-text-secondary: #9ca3af;
@@ -43,6 +64,26 @@ onMounted(() => {
   --color-chat-ai-bg: #1f2937;
   --color-code-bg: rgba(0, 0, 0, 0.3);
   --color-table-header: #374151;
+}
+
+.dark .bg-primary {
+  background-color: var(--color-primary-light);
+}
+
+.dark .text-primary {
+  color: var(--color-primary-light);
+}
+
+.dark .border-primary {
+  border-color: var(--color-primary-light);
+}
+
+.dark .accent-primary {
+  accent-color: var(--color-primary-light);
+}
+
+.dark .bg-primary\/10 {
+  background-color: rgba(159, 122, 234, 0.1);
 }
 
 .dark .message-bubble {

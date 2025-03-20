@@ -703,200 +703,36 @@ class OpenAIService {
     try {
       console.log(`Gửi tin nhắn đến OpenAI với model: ${modelId}`);
       
-      // Kiểm tra và xử lý fileIds
-      let validFileIds: string[] = [];
-      if (fileIds) {
-        // Đảm bảo fileIds là mảng
-        if (typeof fileIds === 'string') {
-          try {
-            // Thử phân tích chuỗi JSON
-            validFileIds = JSON.parse(fileIds);
-          } catch (e) {
-            // Nếu không phải JSON, xem như là một ID duy nhất
-            validFileIds = [fileIds];
-          }
-        } else if (Array.isArray(fileIds)) {
-          validFileIds = fileIds;
-        }
-        
-        if (validFileIds.length > 0) {
-          console.log(`Đính kèm ${validFileIds.length} file với tin nhắn: ${validFileIds.join(', ')}`);
-        }
-      }
+      // Xác định giới hạn token dựa vào model
+      const maxTokens = await this.getModelTokenLimit(modelId);
+      console.log(`Model ${modelId} có giới hạn: ${maxTokens} tokens`);
       
-      // Lấy thông tin giới hạn model
-      let maxTokens;
-      try {
-        const modelLimits = await this.getModelLimits(modelId);
-        maxTokens = Math.min(4096, modelLimits.maxTokens);
-        console.log(`Model ${modelId} có giới hạn: ${maxTokens} tokens`);
-      } catch (error) {
-        maxTokens = 4096;
-        console.log(`Sử dụng giới hạn mặc định: ${maxTokens} tokens`);
-      }
-
-      const messages: Message[] = [];
+      // Chuẩn bị tin nhắn từ lịch sử trò chuyện và giảm kích thước nếu cần
+      const messages = this.prepareMessages(prompt, conversationHistory, contextSummary);
+      console.log(`Gửi tin nhắn đến OpenAI API:`);
+      console.log(`Tổng số tin nhắn: ${messages.length}`);
       
-      // Thêm context summary nếu có
-      if (contextSummary) {
-        messages.push({
-          role: 'system',
-          content: contextSummary
-        });
-      } else {
-        // Thêm system message mặc định
-        messages.push({
-          role: 'system',
-          content: 'Bạn là một trợ lý AI hữu ích.'
-        });
-      }
+      // Kiểm tra nếu model là search model
+      const isSearchModel = modelId.includes('search-preview') || modelId.includes('search-');
       
-      // Thêm lịch sử hội thoại nếu có
-      if (conversationHistory && conversationHistory.length > 0) {
-        // Chuyển đổi định dạng tin nhắn nếu cần
-        const formattedHistory = conversationHistory.map(msg => ({
-          role: msg.is_user ? 'user' as const : 'assistant' as const,
-          content: msg.content
-        }));
-        messages.push(...formattedHistory);
-      }
-
-      // Tin nhắn từ người dùng
-      let userMessage: any = {
-        role: 'user',
-        content: prompt
-      };
-
-      // Nếu có file đính kèm (ảnh), thêm vào tin nhắn
-      if (attachmentPath) {
-        console.log(`Xử lý file đính kèm: ${attachmentPath}`);
-        
-        if (!fs.existsSync(attachmentPath)) {
-          console.error(`File không tồn tại: ${attachmentPath}`);
-          throw new Error(`File không tồn tại: ${attachmentPath}`);
-        }
-
-        // Chỉ xử lý nếu model hỗ trợ vision (gpt-4-vision, gpt-4o)
-        if (modelId.includes('gpt-4o') || modelId.includes('gpt-4-vision')) {
-          try {
-            // Lấy MIME type dựa trên phần mở rộng của file
-            const extension = path.extname(attachmentPath).toLowerCase();
-            let mediaType;
-            
-            switch (extension) {
-              case '.jpg':
-              case '.jpeg':
-                mediaType = 'image/jpeg';
-                break;
-              case '.png':
-                mediaType = 'image/png';
-                break;
-              case '.gif':
-                mediaType = 'image/gif';
-                break;
-              case '.webp':
-                mediaType = 'image/webp';
-                break;
-              default:
-                throw new Error(`Định dạng file ${extension} không được hỗ trợ`);
-            }
-
-            // Đọc file dưới dạng Buffer và chuyển sang base64
-            const fileContent = fs.readFileSync(attachmentPath);
-            const base64Content = fileContent.toString('base64');
-            
-            console.log(`Kích thước file: ${(fileContent.length / (1024 * 1024)).toFixed(2)}MB`);
-
-            // Format theo quy định của OpenAI
-            const contentArray: any[] = [
-              { type: 'text', text: prompt },
-              { 
-                type: 'image_url',
-                image_url: {
-                  url: `data:${mediaType};base64,${base64Content}`
-                }
-              }
-            ];
-
-            userMessage.content = contentArray;
-          } catch (fileError: any) {
-            console.error(`Lỗi xử lý file: ${fileError.message}`);
-            throw new Error(`Lỗi xử lý file: ${fileError.message}`);
-          }
-        } else {
-          console.warn(`Model ${modelId} không hỗ trợ xử lý hình ảnh, bỏ qua file đính kèm`);
-        }
-      }
-
-      // Thêm file vào payload nếu có, sử dụng attachments theo tài liệu mới nhất
-      if (validFileIds && validFileIds.length > 0) {
-        try {
-          // Sử dụng attachments để kèm file
-          console.log(`Thử sử dụng attachments với file_ids...`);
-          
-          // Tạo mảng attachments theo định dạng yêu cầu
-          const attachments = validFileIds.map(fileId => ({
-            file_id: fileId,
-            type: "file"
-          }));
-          
-          // Thêm attachments vào message nội dung của user
-          if (typeof userMessage.content === 'string') {
-            userMessage.content = [
-              { type: "text", text: userMessage.content },
-              ...attachments.map(attachment => ({ 
-                type: "file",
-                file_id: attachment.file_id
-              }))
-            ];
-          } else if (Array.isArray(userMessage.content)) {
-            // Nếu đã là mảng (có thể đã có hình ảnh), thêm các file vào
-            userMessage.content.push(...attachments.map(attachment => ({ 
-              type: "file",
-              file_id: attachment.file_id
-            })));
-          }
-          
-          console.log(`Đã thêm ${validFileIds.length} file vào nội dung tin nhắn người dùng`);
-        } catch (attachmentSetupError) {
-          console.error('Lỗi khi thiết lập file attachments:', attachmentSetupError);
-        }
-      }
-
-      // Thêm tin nhắn người dùng (đã có thể bao gồm file attachments) vào messages
-      messages.push(userMessage);
-      
-      const requestPayload: any = {
+      // Xây dựng payload request
+      let requestPayload: any = {
         model: modelId,
-        messages: messages
+        messages,
       };
-
-      console.log('Gửi tin nhắn đến OpenAI API:');
-      console.log('Tổng số tin nhắn:', messages.length);
       
-      // Kiểm tra loại model để áp dụng tham số phù hợp
-      const baseModelName = this.getBaseModelName(modelId).toLowerCase();
-      
-      // Áp dụng các tham số dựa trên loại model
-      if (
-        baseModelName.includes('gpt-3.5') || 
-        baseModelName.includes('gpt-4') || 
-        baseModelName.includes('gpt-4o')
-      ) {
-        // Các model hỗ trợ chat completion thường hỗ trợ các tham số này
+      // Chỉ thêm temperature nếu không phải là search model
+      if (!isSearchModel) {
+        requestPayload.temperature = 0.7;
         requestPayload.max_tokens = maxTokens;
-        
-        // Một số model mới (đặc biệt là gpt-4o) có thể không hỗ trợ temperature
-        // Chỉ thêm temperature nếu model hỗ trợ
-        if (
-          !baseModelName.includes('gpt-4o-2024') && 
-          !baseModelName.includes('gpt-4o-mini')
-        ) {
-          requestPayload.temperature = 0.7;
-        }
       }
-
-      // Gửi tin nhắn đến OpenAI API
+      
+      // Thêm file_ids nếu có
+      if (fileIds && fileIds.length > 0) {
+        requestPayload.file_ids = fileIds;
+      }
+      
+      // Gửi yêu cầu đến API
       const response = await axios.post(
         `${this.baseUrl}/chat/completions`,
         requestPayload,
@@ -920,26 +756,30 @@ class OpenAIService {
     } catch (error: any) {
       console.error('Lỗi khi gửi tin nhắn đến OpenAI:', error.response?.data || error.message);
       
+      // Lưu messages ở phạm vi bên ngoài try-catch để có thể sử dụng trong khối catch
+      const currentMessages = this.prepareMessages(prompt, conversationHistory, contextSummary);
+      
       // Nếu lỗi liên quan đến tham số không hỗ trợ
       if (error.response?.data?.error?.message?.includes('Unrecognized request argument') ||
           error.response?.data?.error?.message?.includes('incompatible request argument')) {
         try {
-          console.log('Thử lại yêu cầu không có file...');
+          console.log('Thử lại yêu cầu với cấu hình đơn giản hơn...');
           
-          // Xác định lại messages từ userMessage 
-          const retryMessages = [
-            { role: 'system', content: 'Bạn là một trợ lý AI hữu ích. Người dùng đã tải lên một file, nhưng bạn không thể truy cập nội dung file đó trực tiếp. Hãy thông báo với người dùng về điều này.' },
-            { role: 'user', content: `${prompt} (Tôi đã đính kèm một file để bạn đọc)` }
-          ];
+          // Xác định lại messages nếu có file
+          let retryMessages = currentMessages;
+          if (fileIds && fileIds.length > 0) {
+            retryMessages = [
+              { role: 'system', content: 'Bạn là một trợ lý AI hữu ích. Người dùng đã tải lên một file, nhưng bạn không thể truy cập nội dung file đó trực tiếp. Hãy thông báo với người dùng về điều này.' },
+              { role: 'user', content: `${prompt} (Tôi đã đính kèm một file để bạn đọc)` }
+            ];
+          }
           
-          // Gửi lại với tham số đơn giản, không có file_ids
+          // Gửi lại với tham số tối thiểu
           const simpleResponse = await axios.post(
             `${this.baseUrl}/chat/completions`,
             {
               model: modelId,
-              messages: retryMessages,
-              temperature: 0.7,
-              max_tokens: 4096 // Sử dụng giá trị cố định thay vì biến maxTokens
+              messages: retryMessages
             },
             {
               headers: {
@@ -1045,6 +885,82 @@ class OpenAIService {
     } catch (error: any) {
       console.error(`Lỗi khi lấy nội dung file ${fileId}:`, error.response?.data || error.message);
       throw new Error(`Lỗi khi lấy nội dung file: ${error.response?.data?.error?.message || error.message}`);
+    }
+  }
+
+  // Thêm phương thức prepareMessages
+  private prepareMessages(prompt: string, conversationHistory?: any[], contextSummary?: string): Message[] {
+    const messages: Message[] = [];
+    
+    // Thêm context summary nếu có
+    if (contextSummary) {
+      messages.push({
+        role: 'system',
+        content: contextSummary
+      });
+    } else {
+      // Thêm system message mặc định
+      messages.push({
+        role: 'system',
+        content: 'Bạn là một trợ lý AI hữu ích.'
+      });
+    }
+    
+    // Thêm lịch sử hội thoại nếu có
+    if (conversationHistory && conversationHistory.length > 0) {
+      try {
+        // Chuyển đổi định dạng tin nhắn nếu cần
+        let historyArray = conversationHistory;
+        
+        // Nếu conversationHistory là chuỗi JSON, phân tích nó
+        if (typeof conversationHistory === 'string') {
+          try {
+            historyArray = JSON.parse(conversationHistory);
+          } catch (e) {
+            console.error('Lỗi khi phân tích lịch sử hội thoại:', e);
+          }
+        }
+        
+        const formattedHistory = historyArray.map(msg => {
+          if (msg.role) {
+            return {
+              role: msg.role,
+              content: msg.content
+            };
+          } else {
+            return {
+              role: msg.isUser ? 'user' : 'assistant',
+              content: msg.content
+            };
+          }
+        });
+        
+        messages.push(...formattedHistory);
+      } catch (error) {
+        console.error('Lỗi khi xử lý lịch sử hội thoại:', error);
+      }
+    }
+
+    // Tin nhắn từ người dùng (nếu không có trong lịch sử)
+    const lastMessage = messages[messages.length - 1];
+    if (!lastMessage || lastMessage.role !== 'user' || lastMessage.content !== prompt) {
+      messages.push({
+        role: 'user',
+        content: prompt
+      });
+    }
+    
+    return messages;
+  }
+
+  // Thêm phương thức getModelTokenLimit
+  private async getModelTokenLimit(modelId: string): Promise<number> {
+    try {
+      const modelLimits = await this.getModelLimits(modelId);
+      return Math.min(4096, modelLimits.maxTokens);
+    } catch (error) {
+      console.log(`Không thể lấy thông tin giới hạn cho model ${modelId}, sử dụng giá trị mặc định.`);
+      return 4096; // Giá trị mặc định
     }
   }
 }

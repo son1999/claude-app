@@ -16,12 +16,12 @@ class ModelService {
       // Thêm prefix để phân biệt các model từ các nhà cung cấp khác nhau
       const formattedAnthropicModels = anthropicModels.map(model => ({
         ...model,
-        provider: 'anthropic'
+        provider: 'Claude'
       }));
       
       const formattedOpenAIModels = openaiModels.map(model => ({
         ...model,
-        provider: 'openai'
+        provider: 'GPT'
       }));
       
       // Kết hợp tất cả models
@@ -43,14 +43,16 @@ class ModelService {
       // Xác định nhà cung cấp từ model ID nếu không được cung cấp
       if (!provider) {
         if (modelId.includes('gpt')) {
-          provider = 'openai';
+          provider = 'GPT';
         } else {
-          provider = 'anthropic';
+          provider = 'Claude';
         }
       }
       
-      // Gọi service tương ứng
-      if (provider === 'openai') {
+      // Gọi service tương ứng dựa trên provider thực tế
+      const realProvider = this.getRealProvider(provider);
+      
+      if (realProvider === 'openai') {
         return await OpenAIService.getModelLimits(modelId);
       } else {
         return await AnthropicService.getModelLimits(modelId);
@@ -77,9 +79,9 @@ class ModelService {
       // Xác định nhà cung cấp từ model ID nếu không được cung cấp
       if (!provider) {
         if (modelId.includes('gpt')) {
-          provider = 'openai';
+          provider = 'GPT';
         } else {
-          provider = 'anthropic';
+          provider = 'Claude';
         }
       }
       
@@ -88,8 +90,10 @@ class ModelService {
         console.log(`Đính kèm ${fileIds.length} file đã upload:`, fileIds);
       }
       
-      // Gọi service tương ứng
-      if (provider === 'openai') {
+      // Gọi service tương ứng dựa trên provider thực tế
+      const realProvider = this.getRealProvider(provider);
+      
+      if (realProvider === 'openai') {
         return await OpenAIService.sendMessage(prompt, modelId, attachmentPath, fileIds, conversationHistory, contextSummary);
       } else {
         // Anthropic chưa hỗ trợ file uploads API, chỉ sử dụng attachmentPath
@@ -110,20 +114,41 @@ class ModelService {
       
       if (!provider) {
         // Mặc định là OpenAI nếu không cung cấp
-        provider = 'openai';
+        provider = 'GPT';
       }
       
-      if (provider === 'openai') {
+      // Chuyển đổi provider hiển thị sang provider thực tế
+      const realProvider = this.getRealProvider(provider);
+      
+      if (realProvider === 'openai') {
         return await OpenAIService.uploadFile(filePath, purpose);
-      } else if (provider === 'anthropic') {
+      } else if (realProvider === 'anthropic') {
         // Anthropic chưa hỗ trợ file uploads API
         throw new Error('Anthropic chưa hỗ trợ file uploads API');
       } else {
-        throw new Error('Provider không hợp lệ. Chỉ hỗ trợ "openai" hoặc "anthropic"');
+        throw new Error('Provider không hợp lệ. Chỉ hỗ trợ "GPT" hoặc "Claude"');
       }
     } catch (error: any) {
       console.error('Lỗi khi upload file:', error);
       throw error;
+    }
+  }
+  
+  /**
+   * Chuyển đổi từ provider hiển thị sang provider thực tế
+   */
+  private getRealProvider(displayProvider: string): string {
+    switch (displayProvider) {
+      case 'GPT':
+        return 'openai';
+      case 'Claude':
+        return 'anthropic';
+      default:
+        // Fallback cho các trường hợp vẫn dùng tên cũ
+        if (displayProvider === 'openai') return 'openai';
+        if (displayProvider === 'anthropic') return 'anthropic';
+        // Mặc định là openai nếu không xác định được
+        return 'openai';
     }
   }
 }
